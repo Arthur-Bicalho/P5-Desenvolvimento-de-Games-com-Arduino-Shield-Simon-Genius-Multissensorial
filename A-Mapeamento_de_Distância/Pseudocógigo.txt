@@ -1,0 +1,11 @@
+Usuário pressiona o botão --> loop() detecta pino 7 = LOW --> chama medirDistância()
+-->TRIG: LOW(2micros) --> HIGH(10micros) --LOW
+             ↓
+        Sensor emite 8 pulsos --> Som viaja --> Bate na mão --> reflete de volta
+             ↓
+        ECHO fica HIGH  pelo tempo da viagem --> PulseIn() mede esse tempo em microsegundos
+        --> (tempo * 0.034)/2 = distância em cm --> Serial.print() exibe no monitor
+        -->delay(300 ms) --> volta ao início do loop().
+             
+             
+
