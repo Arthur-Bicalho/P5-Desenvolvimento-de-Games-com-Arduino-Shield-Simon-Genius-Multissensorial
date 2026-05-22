@@ -4,22 +4,23 @@
 #include <stdlib.h>
 #include <time.h>
 
+#define TRIG_PIN   12
+#define ECHO_PIN   13
+
+#define LED_R       9
+#define LED_G      10
+#define LED_B      11
+
+#define BUZZER_PIN  3
+#define BTN_PIN     2
 
 #define N 10; //C
 
-/* PIN Def */ //A
-const int trigPin = 9; //pino de disparo (saída)
-const int echoPin = 8; //pino de eco (entrada)
-const int botaoPin = 7; //botão
-
-/* Global Variables*/
+/*=========================Global Variables=========================*/
 int sequence_num[N]; //C
 int level=1; //C
-const int R = 9, G = 6, B = 5; //B
-const int BUZZER = 4; //B
-const int trigPin = 9; echoPin = 8; //B
 
-/* Struct */ //B
+/*============================Struct ============================*/ //B
 struct Level {int r, g, b, frequence;};
 
 const Level LEVELS[] = {
@@ -35,12 +36,24 @@ void set_color(int r, int g, int b){
   analogWrite(B, b);
 }
 
-/* Functions*/
+/*============================Functions============================*/
 void sequence(){ //C
   srand(analogRead(A0)) // REVISAR SE É REALMENTE A0!!!
   for (int i = 0; i < N; i++) {
     sequence_num[i] = (rand() % 4) + 1;
   }
+}
+
+
+float get_distance(){ //A
+  digitalWrite(TRIG_PIN, LOW); //antes de gerar o pulso força o pino para LOW
+  delayMicroseconds(2); //aguarda 2 microsegundos para estabilizar
+  digitalWrite(TRIG_PIN, HIGH); //Inicia o pulso de disparo
+  delayMicroseconds(10); //Mantém HIGH por 10 microsegundos
+  digitalWrite(TRIG_PIN, LOW); //encerra o pulso
+  float duration_us = pulseIn(ECHO_PIN, HIGH); //mde a duração do pulso HIGH no pino ECHO
+  float distance_cm = duration_us * 0.034/2.0; //calculo da distância
+  return distance_cm; //Retorna o resultado para quem chamou a função
 }
 
 int map_level(float distance){ //B
@@ -54,83 +67,70 @@ int map_level(float distance){ //B
 void show_level(int level, int duration){ //B
   if (level < 1 || level > 4){
     set_color(0, 0, 0);
-    noTone(BUZZER);
+    noTone(BUZZER_PIN);
     return;
     }
 
   Level n = LEVELS[level - 1];
-  tone(BUZZER, n.frequence, duration);
+  tone(BUZZER_PIN, n.frequence, duration);
   delay(duration);
   set_color(0, 0, 0);
-  noTone(BUZZER);
-}
-
-float get_distance(){ //A
-  digitalWrite(trigPin, LOW); //antes de gerar o pulso força o pino para LOW
-  delayMicroseconds(2); //aguarda 2 microsegundos para estabilizar
-  digitalWrite(trigPin, HIGH); //Inicia o pulso de disparo
-  delayMicroseconds(10); //Mantém HIGH por 10 microsegundos
-  digitalWrite(trigPin, LOW); //encerra o pulso
-  float duration_us = pulseIn(echoPin, HIGH); //mde a duração do pulso HIGH no pino ECHO
-  float distance_cm = duration_us * 0.034/2.0; //calculo da distância
-  return distance_cm; //Retorna o resultado para quem chamou a função
+  noTone(BUZZER_PIN);
 }
 
 boolean checkDistance(){ //C
 
 }
 
+
+/*============================Start============================*/
 void setup(){
   Serial.begin(9600);
-  pinMode(trigPin, OUTPUT); //TRIG é SAÍDA: o Arduino envia o pulso //A
-  pinMode(echoPin, INPUT); //ECHO é ENTRADA: o arduino lê o retorno //A 
-  pinMode(botaoPin, INPUT_PULLUP); //A
 
-  pinMode(trigPint, OUTPUT); //B
-  pinMode(echoPin, INPUT); //B 
+  pinMode(TRIG_PIN, OUTPUT); //TRIG é SAÍDA: o Arduino envia o pulso //A
+  pinMode(ECHO_PIN, INPUT); //ECHO é ENTRADA: o arduino lê o retorno //A 
+  pinMode(BTN_PIN, INPUT_PULLUP); //A
+
+  pinMode(TRIG_PIN, OUTPUT); //B
+  pinMode(ECHO_PIN, INPUT); //B 
   pinMode(R, OUTPUT); pinMode(g, OUTPUT); //B
   pinMode(B, OUTPUT); //B
-  pinMode(BUZZER, OUTPUT); //B
-
+  pinMode(BUZZER_PIN, OUTPUT); //B
 
   Timer1.initialize(1000000); //C
   MFS.initialize(&Timer1); //C
-  sequence(); //C
-  for (int i=0; i < N; i++){ //C
-    MFS.write(sequence_num[i]); //C
-    show_level(get_distance(),1000); //C
-    delay(500); //C
-  }
 }
 
 void loop(){
-  //A
-  if(digitalRead(botaoPin == LOW){ //verifica o estado atual do botão, se botão pressionado: chama a medição
-    float distance = get_distance();
-    Serial.print("Distância: "); //Exibe o resultado no monitor serial
-    Serial.print(distance); //Imprime o número
-    Serial.println(" cm"); //Imprime a unidade e quebra a linha
-    delay(300); //Aguarda 300 microssegundos antes de aceitar nova leitura
+  sequence(); //C
+  int buttonvalue = 0;
+
+  byte btn = MFS.getButton();
+
+  for (int i=0; i < N; i++){ //C
+    MFS.write(sequence_num[i]); //C
+show_level(sequence_num[i],1000); //C
+    delay(500); //C
   }
 
-  float distance = get_distance(); //B
-  int level = map_level(distance); //B
-  if(level == 0) MFS.write("Fora do alcance"); //B
+  if (btn == BUTTON_1_PRESSED || btn == BUTTON_2_PRESSED || btn == BUTTON_3_PRESSED || /*tempo >= 5seg passados*/) { //C
+    float distance = get_distance();
+    checkDistance();
+    if (checkDistance() == 1)MFS.write(distance);
+    delay(300); //C
+  }
+
+  int level = map_level(distance); //B 
+  
+  if(level == 0) MFS.write("0000"); //B
   else{ //B
-    MFS.write("Nível: ");
+    MFS.write(level);
     delay(200);}
 
-  Serial.print("Dist: "); Serial.print(distance); //B 
-  Serial.print(" cm -> Nivel: "); Serial.println(level); //B
-  show_level(level, 400); //mosta cor + toca som por 400 ms / B
+  /*Serial.print("Dist: "); Serial.print(distance); //B 
+  Serial.print(" cm -> Nivel: "); Serial.println(level); //B*/
+  show_level(level, 1000); //mosta cor + toca som por 400 ms / B
   delay(100); //B
-
-
-  if (btn = BUTTON_PRESSED || Timer1 >= 5000000){ //C
-    float distance=get_distance();
-    checkDistance();
-    if (checkDistance() == 1)MFS.write(distance); //C
-  }
 
   /* if user gets right
    * level++
