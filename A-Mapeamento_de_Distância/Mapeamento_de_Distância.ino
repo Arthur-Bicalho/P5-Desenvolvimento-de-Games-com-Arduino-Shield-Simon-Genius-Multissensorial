@@ -1,7 +1,13 @@
 //configuração do sensor ultrassônico
 /* Alimentação: 5V DC; Alcance: 2cm - 400cm; Precisão: aproximadamente 0.3 cm;
  * Frequência: 40 kHz; Pinos: VCC, TRIG, ECHO, GND; Resistor: 10 kΩ + 20 kΩ; */
- 
+#include <TimerOne.h>
+#include <Wire.h>
+#include <MultiFuncShield.h>
+#include <stdlib.h>
+#include <time.h>
+
+
 //Definição dos pinos
 const int trigPin = 9; //pino de disparo (saída)
 const int echoPin = 8; //pino de eco (entrada)
@@ -11,15 +17,6 @@ const int botaoPin = 7; //botão
 float duracao_micros; //duração do pulso ECHO em microssegundos
 float distancia_cm; //Distância calculada em centímetros
 
-//setup() - executab ao ligar
-void setup(){
-  Serial.begin(9600); //Inicia a comunicação serial
-  pinMode(trigPin, OUTPUT); //TRIG é SAÍDA: o Arduino envia o pulso
-  pinMode(echoPin, INPUT); //ECHO é ENTRADA: o arduino lê o retorno
-  pinMode(botaoPin, INPUT_PULLUP);
-}
-
-//Função de medição
 float medirDistancia(){
   digitalWrite(trigPin, LOW); //antes de gerar o pulso força o pino para LOW
   delayMicroseconds(2); //aguarda 2 microsegundos para estabilizar
@@ -31,6 +28,14 @@ float medirDistancia(){
   return distancia_cm; //Retorna o resultado para quem chamou a função
 }
 
+//setup() - executab ao ligar
+void setup(){
+  Serial.begin(9600); //Inicia a comunicação serial
+  pinMode(trigPin, OUTPUT); //TRIG é SAÍDA: o Arduino envia o pulso
+  pinMode(echoPin, INPUT); //ECHO é ENTRADA: o arduino lê o retorno
+  pinMode(botaoPin, INPUT_PULLUP);
+}
+ 
 //Loop
 void loop(){
   if(digitalRead(botaoPin == LOW){ //verifica o estado atual do botão, se botão pressionado: chama a medição
