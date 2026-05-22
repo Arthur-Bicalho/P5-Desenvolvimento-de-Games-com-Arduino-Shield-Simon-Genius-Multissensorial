@@ -9,14 +9,27 @@ const int R = 9, G = 6, B = 5;
 const int BUZZER = 4;
 const int trigPin = 9; echoPin = 8;
 
-int mapearNivel(float distancia){
-  if (distancia > 0 && distancia <= 10) return 1;
-  else if (distancia > 10 && distancia <= 20) return 2;
-  else if (distancia > 20 && distancia <= 30) return 3;
-  else if (distancia > 30 && distancia <= 40) return 4;
+int map_level(float distance){ //B
+  if (distance > 0 && distance <= 10) return 1;
+  else if (distance > 10 && distance <= 20) return 2;
+  else if (distance > 20 && distance <= 30) return 3;
+  else if (distance > 30 && distance <= 40) return 4;
   else return 0;
 }
 
+void show_level(int level, int duration){ //B
+  if (level < 1 || level > 4){
+    set_color(0, 0, 0);
+    noTone(BUZZER);
+    return;
+    }
+
+  Level n = LEVELS[level - 1];
+  tone(BUZZER, n.frequence, duration);
+  delay(duration);
+  set_color(0, 0, 0);
+  noTone(BUZZER);
+}
 void loop(){ // 2 VOID LOOPS???
   float distancia = medirDistancia();
   int nivel = mapearNivel(distancia);
@@ -30,34 +43,19 @@ void loop(){ // 2 VOID LOOPS???
 }
 
 // Estrutura e tabela de níveis
-struct Nivel {int r, g, b, frequencia;};
+struct Level {int r, g, b, frequence;};
 
-const Nivel NIVEIS[] = {
+const Level LEVELS[] = {
   {255, 0, 0, 262}, //Nível 1 -- Vermelho/Dó
   {0, 255, 0, 294}, //Nível 2 -- Verde/Ré
   {0, 0, 255, 330}, //Nível 3 -- Azul/Mí
   {255, 150, 0, 349}, //Nível 4 -- Amarelo / Fá
   };
 
-void definirCor(int r, int g, int b){
+void set_color(int r, int g, int b){
   analogWrite(R, r);
   analogWrite(G, g);
   analogWrite(B, b);
-}
-
-// Função principal: aplica cor + som de um nível
-void exibirNivel(int nivel, int duracao){
-  if (nivel < 1 || nivel> 4){
-    definirCor(0, 0, 0);
-    noTone(BUZZER);
-    return;
-    }
-
-  Nivel n = NIVEIS[nivel - 1];
-  tone(BUZZER, n.frequencia, duracao);
-  delay(duracao);
-  definirCor(0, 0, 0);
-  noTone(BUZZER);
 }
 
 void setup(){
