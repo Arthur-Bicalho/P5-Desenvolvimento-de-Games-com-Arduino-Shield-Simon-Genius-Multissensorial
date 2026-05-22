@@ -17,7 +17,7 @@ int mapearNivel(float distancia){
   else return 0;
 }
 
-void loop(){
+void loop(){ // 2 VOID LOOPS???
   float distancia = medirDistancia();
   int nivel = mapearNivel(distancia);
 
@@ -46,7 +46,7 @@ void definirCor(int r, int g, int b){
 }
 
 // Função principal: aplica cor + som de um nível
-void exibirNível(int nível, int duracao){
+void exibirNivel(int nivel, int duracao){
   if (nivel < 1 || nivel> 4){
     definirCor(0, 0, 0);
     noTone(BUZZER);
