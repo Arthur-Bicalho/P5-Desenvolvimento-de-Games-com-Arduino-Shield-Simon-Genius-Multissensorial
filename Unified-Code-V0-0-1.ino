@@ -3,6 +3,11 @@
 #include <MultiFuncShield.h>
 #include <stdlib.h>
 #include <time.h>
+/*
+Trocar o BUZZER_PIN por MFS.Beep()
+Verificar Lógica dos LEDs
+
+*/
 
 #define TRIG_PIN A4
 #define ECHO_PIN A5
@@ -11,10 +16,9 @@
 #define LED_G 5
 #define LED_B 6
 
-#define BUZZER_PIN 3
 #define BTN_PIN 2
 
-#define N 10;
+#define N 10
 #define TIMEOUT_seg 5000
 
 
@@ -22,6 +26,10 @@
 int sequence_num[N];
 int seq_size=1;
 int level=1;
+int showSeqVel = 1000;
+const int VEL_MIN  = 300;
+const int VEL_DECR = 50;
+const byte LED_MFS[5] = { 0, LED_1, LED_2, LED_3, LED_4 };
 /*============================Struct============================*/
 struct Level {int r, g, b, frequence;};                         // Revisar isso aqui,
                                                                 // será que precisa ser struct?
@@ -38,9 +46,32 @@ const Level LEVELS[] = {                                        // as vezes usar
 
 /*============================Functions============================*/
 void sequence(){
-  srand(analogRead(A0)) // REVISAR SE É REALMENTE A0!!!
+  srand(analogRead(A1));
   for (int i = 0; i < N; i++) {
     sequence_num[i] = (rand() % 4) + 1;
+  }
+}
+
+void show_sequence() {
+  delay(400);
+  for (int i = 0; i < seq_size; i++) {
+    int n = sequence_num[i];
+
+    show_level(n);
+    MFS.writeLeds(LED_MFS[n], ON);   // LED do Shield, mas será que n tem que usar outro LED?
+
+    // Beep proporcional à duração atual
+    // parâmetros: ms_on, ms_off, ciclos, loops, pausa_loops
+    int cicles = showSeqVel / 100;
+    MFS.beep(cicles, 1, 1, 1, 1);   // tom ativo por showseqvel ms
+    tone(LED_R - LED_R + 3,          // reutiliza pino 3 como saída de tom
+         SCORE[n], showSeqVel();         // tom real no buzzer externo (opcional)
+    // Para buzzer do Shield use só MFS.beep — tone() é alternativa com RGB
+
+    delay(showSeqVel);
+    set_LED(0,0,0);
+    MFS.writeLeds(LED_MFS[n], OFF);
+    delay(400);
   }
 }
 
@@ -59,20 +90,20 @@ float get_distance(){
 int map_level(float distance){
   if (distance <= 10) return 1;
   else if (distance <= 20) return 2;
-  else if (istance <= 30) return 3;
+  else if (distance <= 30) return 3;
   else if (distance <= 40) return 4;
   else return 0;
 }
 
-void set_color(int r, int g, int b){
-  analogWrite(R, r);
-  analogWrite(G, g);
-  analogWrite(B, b);
+void set_LED(int r, int g, int b){
+  analogWrite(LED_R, r);
+  analogWrite(LED_G, g);
+  analogWrite(LED_B, b);
 }
 
-void show_level(int level, int duration){
+void show_level(int level, int duration){      /* que porra é essa */
   if (level < 1 || level > 4){
-    set_color(0, 0, 0);
+    set_LED(0, 0, 0);
     noTone(BUZZER_PIN);
     return;
     }
@@ -80,24 +111,91 @@ void show_level(int level, int duration){
   Level n = LEVELS[level - 1];
   tone(BUZZER_PIN, n.frequence, duration);
   delay(duration);
-  set_color(0, 0, 0);
+  set_LED(0, 0, 0);
   noTone(BUZZER_PIN);
 }
 
-bool checkDistance(){
+bool check_answer(int esperado) {
+  unsigned long t0 = millis();
 
+  // Feedback visual em tempo real
+  while (millis() - t0 < TIMEOUT_seg) {
+    int n = map_level();
+    if (n > 0) show_level(n); else set_LED(0,0,0);
+
+    if (MFS.getButton() == BUTTON_1_PRESSED) break;
+  }
+
+  set_LED(0,0,0);
+
+  int read = map_level(get_distance());
+  MFS.write(read);                     // exibe nível lido no display
+
+  if (read == esperado) {
+    MFS.writeLeds(LED_MFS[read], ON);
+    MFS.beep(2, 1, 1, 1, 1);          // bip curto de acerto
+    delay(400);
+    MFS.writeLeds(LED_MFS[read], OFF);
+    level++;
+    return true;
+  }
+  return false;
 }
 
-bool right_wrong(){
-  l
+void show_error() {
+  MFS.write("Err");
+  MFS.blinkDisplay(DIGIT_ALL, ON);
+  MFS.beep(3, 3, 3, 1, 1);          // 3 bips rápidos × 3
+  for (int i = 0; i < 3; i++) {
+    set_LED(255, 0, 0); 
+    delay(300);
+    set_LED(0,0,0);       
+    delay(150);
+  }
+  MFS.blinkDisplay(DIGIT_ALL, OFF);
 }
 
+void show_victory() {
+  MFS.write("BOM");
+  for (int n = 1; n <= 4; n++) {
+    MFS.writeLeds(LED_MFS[n], ON);
+    show_level(n);
+    MFS.beep(2, 1, 1, 1, 1);
+    delay(220);
+    MFS.writeLeds(LED_MFS[n], OFF);
+    set_LED(0,0,0);
+  }
+}
+
+void rainbow() {
+  MFS.write("ARC");
+  MFS.blinkLeds(LED_ALL, ON);
+
+  for (int h = 0; h < 360; h += 6) {
+    float c = 1.0, x = c * (1 - abs(fmod(h / 60.0, 2) - 1));
+    float r1, g1, b1;
+    if (h <  60) { r1 = c; g1 = x; b1 = 0; }
+    else if (h < 120) { r1 = x; g1 = c; b1 = 0; }
+    else if (h < 180) { r1 = 0; g1 = c; b1 = x; }
+    else if (h < 240) { r1 = 0; g1 = x; b1 = c; }
+    else if (h < 300) { r1 = x; g1 = 0; b1 = c; }
+    else { r1 = c; g1 = 0; b1 = x; }
+    set_LED(r1 * 255, g1 * 255, b1 * 255);
+    delay(18);
+  }
+
+  MFS.blinkLeds(LED_ALL, OFF);
+  MFS.writeLeds(LED_ALL, OFF);
+  set_LED(0,0,0);
+}
 /*============================Start============================*/
 void setup(){
   Serial.begin(9600);
 
   Timer1.initialize(1000000);
   MFS.initialize(&Timer1);
+
+  sequence();
 
   pinMode(TRIG_PIN, OUTPUT); //TRIG é SAÍDA: o Arduino envia o pulso
   pinMode(ECHO_PIN, INPUT); //ECHO é ENTRADA: o arduino lê o retorno
@@ -112,14 +210,46 @@ void setup(){
 }
 /*============================Loop============================*/
 void loop(){
-  sequence();
   int buttonvalue = 0;
 
   byte btn = MFS.getButton();
 
+  while (seq_size <= N) {
+
+    MFS.write(seq_size);   // mostra fase no display
+    delay(800);
+
+    show_sequence();
+
+    // Jogador reproduz a sequência item a item
+    bool right = true;
+    for (int i = 0; i < seq_size; i++) {
+      MFS.write(i + 1);      // posição atual
+
+      if (!check_answer(sequencia[i])) {
+        right = false;
+        break;
+      }
+      delay(300);
+    }
+
+    if (!right) {
+      show_error();
+      delay(2000);
+      return;                // reinicia tudo
+    }
+
+    if (seq_size % 5 == 0) rainbow();
+    else show_sequence();
+
+    seq_size++;
+    if (showSeqVel - VEL_DECR >= VEL_MIN) showSeqVel -= VEL_DECR;
+    delay(800);
+  }
+
   for (int i=0; i < N; i++){
     MFS.write(sequence_num[i]);
-show_level(sequence_num[i],1000);
+    show_level(sequence_num[i],1000);
     delay(500);
   }
 
@@ -140,204 +270,14 @@ show_level(sequence_num[i],1000);
   show_level(level, 1000); //mosta cor + toca som por 400 ms
   delay(100);
 
-  /* if user gets right
-   * level++
-   * -game gets more difficult, adds another number to the sequence
-   */
-  /* if user gets wrong --> show "wrong!" & restart*/ 
-}
+  check_answer();
+  if (check_answer() == false) /*reinicia*/;
 
-
-
-/*====================Claude Code Gen For Reference==========================
- * // LEDs do Shield associados a cada nível (LED_1..LED_4)
-const byte LED_MFS[5] = { 0, LED_1, LED_2, LED_3, LED_4 };
-
-
-int  sequencia[SEQ_MAX];
-int  seqTamanho    = 1;
-int  velApres      = 1000;   // ms por item na apresentação
-const int VEL_MIN  = 300;
-const int VEL_DECR = 50;
-
-// ── Protótipos ──────────────────────────────────────────────
-void setLED(byte r, byte g, byte b);
-void acenderNivel(int n);
-void apagarLED();
-void apresentarSequencia();
-bool lerResposta(int esperado);
-int  lerNivel();
-void sinalizarErro();
-void sinalizarVitoria();
-void efeitoArcoIris();
-// ════════════════════════════════════════════════════════════
-void loop() {
-
-  seqTamanho = 1;
-  velApres   = 1000;
-
-  while (seqTamanho <= SEQ_MAX) {
-
-    MFS.write(seqTamanho);   // mostra fase no display
-    delay(800);
-
-    apresentarSequencia();
-
-    // Jogador reproduz a sequência item a item
-    bool acertou = true;
-    for (int i = 0; i < seqTamanho; i++) {
-      MFS.write(i + 1);      // posição atual
-
-      if (!lerResposta(sequencia[i])) {
-        acertou = false;
-        break;
-      }
-      delay(300);
-    }
-
-    if (!acertou) {
-      sinalizarErro();
-      delay(2000);
-      return;                // reinicia tudo
-    }
-
-    if (seqTamanho % 5 == 0) efeitoArcoIris();
-    else                     sinalizarVitoria();
-
-    seqTamanho++;
-    if (velApres - VEL_DECR >= VEL_MIN) velApres -= VEL_DECR;
-    delay(800);
-  }
 
   // Zerou o jogo!
   MFS.write("WIN");
   efeitoArcoIris();
   efeitoArcoIris();
   delay(3000);
+
 }
-
-// ════════════════════════════════════════════════════════════
-//  Apresenta os primeiros seqTamanho itens ao jogador
-// ════════════════════════════════════════════════════════════
-void apresentarSequencia() {
-  delay(400);
-  for (int i = 0; i < seqTamanho; i++) {
-    int n = sequencia[i];
-
-    acenderNivel(n);
-    MFS.writeLeds(LED_MFS[n], ON);   // LED do Shield
-
-    // Beep proporcional à duração atual
-    // parâmetros: ms_on, ms_off, ciclos, loops, pausa_loops
-    int ciclos = velApres / 100;
-    MFS.beep(ciclos, 1, 1, 1, 1);   // tom ativo por ~velApres ms
-    tone(LED_R - LED_R + 3,          // reutiliza pino 3 como saída de tom
-         NOTA[n], velApres);         // tom real no buzzer externo (opcional)
-    // Para buzzer do Shield use só MFS.beep — tone() é alternativa com RGB
-
-    delay(velApres);
-    apagarLED();
-    MFS.writeLeds(LED_MFS[n], OFF);
-    delay(400);
-  }
-}
-
-// ════════════════════════════════════════════════════════════
-//  Aguarda o jogador confirmar com BUTTON_1 (ou timeout 5 s)
-// ════════════════════════════════════════════════════════════
-bool lerResposta(int esperado) {
-  unsigned long t0 = millis();
-
-  // Feedback visual em tempo real
-  while (millis() - t0 < TIMEOUT_MS) {
-    int n = lerNivel();
-    if (n > 0) acenderNivel(n); else apagarLED();
-
-    if (MFS.getButton() == BUTTON_1_PRESSED) break;
-  }
-
-  apagarLED();
-
-  int lido = lerNivel();
-  MFS.write(lido);                     // exibe nível lido no display
-
-  if (lido == esperado) {
-    MFS.writeLeds(LED_MFS[lido], ON);
-    MFS.beep(2, 1, 1, 1, 1);          // bip curto de acerto
-    delay(400);
-    MFS.writeLeds(LED_MFS[lido], OFF);
-    return true;
-  }
-  return false;
-}
-
-// ════════════════════════════════════════════════════════════
-//  Controle do LED RGB externo
-// ════════════════════════════════════════════════════════════
-void setLED(byte r, byte g, byte b) {
-  analogWrite(LED_R, r);
-  analogWrite(LED_G, g);
-  analogWrite(LED_B, b);
-}
-
-void acenderNivel(int n) {
-  if (n < 1 || n > 4) return;
-  setLED(COR_R[n], COR_G[n], COR_B[n]);
-}
-
-void apagarLED() { setLED(0, 0, 0); }
-
-// ════════════════════════════════════════════════════════════
-//  Sinaliza erro: display "Err", 3 bips, LED vermelho
-// ════════════════════════════════════════════════════════════
-void sinalizarErro() {
-  MFS.write("Err");
-  MFS.blinkDisplay(DIGIT_ALL, ON);
-  MFS.beep(3, 3, 3, 1, 1);          // 3 bips rápidos × 3
-  for (int i = 0; i < 3; i++) {
-    setLED(255, 0, 0); delay(300);
-    apagarLED();       delay(150);
-  }
-  MFS.blinkDisplay(DIGIT_ALL, OFF);
-}
-
-// ════════════════════════════════════════════════════════════
-//  Sinaliza vitória de rodada: sequência de LEDs + bips
-// ════════════════════════════════════════════════════════════
-void sinalizarVitoria() {
-  MFS.write("GooD");
-  for (int n = 1; n <= 4; n++) {
-    MFS.writeLeds(LED_MFS[n], ON);
-    acenderNivel(n);
-    MFS.beep(2, 1, 1, 1, 1);
-    delay(220);
-    MFS.writeLeds(LED_MFS[n], OFF);
-    apagarLED();
-  }
-}
-
-// ════════════════════════════════════════════════════════════
-//  Efeito arco-íris (desafio adicional — a cada 5 rodadas)
-// ════════════════════════════════════════════════════════════
-void efeitoArcoIris() {
-  MFS.write("Arc");
-  MFS.blinkLeds(LED_ALL, ON);
-
-  for (int h = 0; h < 360; h += 6) {
-    float c = 1.0, x = c * (1 - abs(fmod(h / 60.0, 2) - 1));
-    float r1, g1, b1;
-    if      (h <  60) { r1 = c; g1 = x; b1 = 0; }
-    else if (h < 120) { r1 = x; g1 = c; b1 = 0; }
-    else if (h < 180) { r1 = 0; g1 = c; b1 = x; }
-    else if (h < 240) { r1 = 0; g1 = x; b1 = c; }
-    else if (h < 300) { r1 = x; g1 = 0; b1 = c; }
-    else              { r1 = c; g1 = 0; b1 = x; }
-    setLED(r1 * 255, g1 * 255, b1 * 255);
-    delay(18);
-  }
-
-  MFS.blinkLeds(LED_ALL, OFF);
-  MFS.writeLeds(LED_ALL, OFF);
-  apagarLED();
-}
-*/
